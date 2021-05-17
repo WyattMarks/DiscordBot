@@ -361,3 +361,12 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+#Google auth
+service-account-file.json
+
+#Other auth and settings
+config.json
+
+#Sounds
+sounds/
