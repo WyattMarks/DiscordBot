@@ -96,9 +96,9 @@
     <Reference Include="Discord.Net.WebSocket, Version=2.3.1.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Discord.Net.WebSocket.2.3.1\lib\net461\Discord.Net.WebSocket.dll</HintPath>
     </Reference>
-    <Reference Include="Genbox.Wikipedia, Version=3.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="Genbox.Wikipedia, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\Wikipedia-master\src\Wikipedia\bin\Release\netstandard2.0\Genbox.Wikipedia.dll</HintPath>
+      <HintPath>..\..\Wikipedia\Wikipedia\bin\Debug\netstandard2.0\Genbox.Wikipedia.dll</HintPath>
     </Reference>
     <Reference Include="Genbox.WolframAlpha, Version=3.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -365,6 +365,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Modules\AudioModule.cs" />
+    <Compile Include="Modules\GameModule.cs" />
     <Compile Include="Objects\CurrentAudioInformation.cs" />
     <Compile Include="Services\AudioService.cs" />
     <Compile Include="Services\CommandHandler.cs" />
@@ -374,6 +375,7 @@
     <Compile Include="Modules\ModeratorModule.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Services\GamesService.cs" />
     <Compile Include="Services\LoggingService.cs" />
     <Compile Include="Services\ModeratorService.cs" />
     <Compile Include="Services\StartupService.cs" />

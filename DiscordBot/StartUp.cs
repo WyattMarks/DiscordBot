@@ -30,6 +30,7 @@ namespace DiscordBot {
             provider.GetRequiredService<AudioService>();
             provider.GetRequiredService<TimerService>();
             provider.GetRequiredService<ModeratorService>();
+            provider.GetRequiredService<GamesService>();
 
             await provider.GetRequiredService<StartupService>().StartAsync();       // Start the startup service
             await Task.Delay(-1);                               // Keep the program alive
@@ -50,6 +51,7 @@ namespace DiscordBot {
             .AddSingleton<AudioService>()
             .AddSingleton<TimerService>()
             .AddSingleton<ModeratorService>()
+            .AddSingleton<GamesService>()
             .AddSingleton<Random>()                 // Add random to the collection
             .AddSingleton(Configuration);           // Add the configuration to the collection
         }

@@ -181,6 +181,7 @@ namespace DiscordBot {
                     await client.currentStream.WriteAsync(memoryStream.ToArray(), 0, (int)memoryStream.Length, client.cancelTokenSource.Token);
                 } catch (OperationCanceledException e) {
                     await channel.SendMessageAsync($"Stopped {path}");
+                    client.paused = path;
                 } finally {
                     await _log.LogAsync(new LogMessage(LogSeverity.Verbose, "Audio", $"Finished playing {path}."));
                     await CheckQueue(guild, channel, target);
@@ -281,35 +282,51 @@ namespace DiscordBot {
             }
         }
 
-        public async Task SendYTAudioAsync(IGuild guild, IMessageChannel channel, IVoiceChannel target, string path, double volume=1.0) {
-            volume *= 0.25;
-
+        public async Task SendYTAudioAsync(IGuild guild, IMessageChannel channel, IVoiceChannel target, string path, double volume=1.0, bool retry = false) {
 
             CurrentAudioInformation client;
             if (CurrentAudioClients.TryGetValue(guild.Id, out client)) {
                 await CheckAudioClient(guild, target, client.client);
                 string youtubeID = GetYouTubeVideoIdFromUrl(path);
-                
-                if (youtubeID == null) {
-                    await channel.SendMessageAsync("That is not a valid youtube link!");
-                    return;
-                }
+
+                var youtube = new YoutubeClient();
 
                 if (!string.IsNullOrEmpty(client.playing)) {
-                    client.queue.Enqueue(path);
+                    client.queue.Enqueue("YOUTUBE" + path);
                     await channel.SendMessageAsync($"Added {path} to the queue.");
                     return;
                 }
 
                 client.playing = path;
 
-                await _log.LogAsync(new LogMessage(LogSeverity.Info, "Audio", $"Starting playback of {path} in {guild.Name}"));
+                if (youtubeID == null || youtubeID.Length == 0) {
+                    try {
+                        var videos = await youtube.Search.GetVideosAsync(path);
+                        youtubeID = videos[0].Id.ToString();
+                        await _log.LogAsync(new LogMessage(LogSeverity.Debug, "Audio", $"{youtubeID}"));
+                    } catch (YoutubeExplode.Exceptions.YoutubeExplodeException e) {
+                        //INCOMING: Very hacky and stupid way of fixing this. For some reason popular music artists sometimes give error ("Cannot extract video author") and don't play.
+                        //Therefore we just search for a reupload once to see if we can find a working vid
+                        if (retry) {
+                            await channel.SendMessageAsync($"Error searching for song: {e.Message}");
+                            await CheckQueue(guild, channel, target);
+                            return;
+                        } else {
+                            client.playing = null;
+                            await channel.SendMessageAsync($"Error playing the first result, trying the next one...");
+                            await SendYTAudioAsync(guild, channel, target, path + " lyrics", volume, true); //Yep. We search for the lyrics reupload and hope the song is on there.
+                            return;
+                        }
+                    }
+                }
+
+                await _log.LogAsync(new LogMessage(LogSeverity.Info, "Audio", $"Starting playback of \"{path}\" in {guild.Name}"));
 
                 if (client.currentStream == null) {
                     client.currentStream = client.client.CreatePCMStream(AudioApplication.Mixed, 98304, 200);
                 }
 
-                var youtube = new YoutubeClient();
+
 
                 var streamManifest = await youtube.Videos.Streams.GetManifestAsync(youtubeID);
                 var streamInfo = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
@@ -326,7 +343,7 @@ namespace DiscordBot {
                     client.cancelTokenSource = new CancellationTokenSource();
                     await client.currentStream.WriteAsync(memoryStream.ToArray(), 0, (int)memoryStream.Length, client.cancelTokenSource.Token);
                 } catch (OperationCanceledException e) {
-                    await channel.SendMessageAsync($"Stopped http://youtu.be/{youtubeID}");
+                    await channel.SendMessageAsync($"Stopped {path}");
                 } finally {
                     await _log.LogAsync(new LogMessage(LogSeverity.Verbose, "Audio", $"Finished playing {path}."));
                     await CheckQueue(guild, channel, target);
@@ -346,16 +363,15 @@ namespace DiscordBot {
                 string nextPlayback;
                 client.playing = null;
                 if (client.queue.TryDequeue(out nextPlayback)) {
-                    string youtubeID = GetYouTubeVideoIdFromUrl(nextPlayback);
                     await _log.LogAsync(new LogMessage(LogSeverity.Verbose, "Audio", $"Took {nextPlayback} off queue"));
 
                     if (nextPlayback.StartsWith("SPEAK")) {
                         nextPlayback = nextPlayback.Substring(5);
                         await SpeakAudioAsync(guild, channel, target, nextPlayback);
-                    } else if (string.IsNullOrEmpty(youtubeID)) {
-                        await SendAudioAsync(guild, channel, target, nextPlayback);
+                    } else if (nextPlayback.StartsWith("YOUTUBE")) {
+                        await SendYTAudioAsync(guild, channel, target, nextPlayback.Substring(7));
                     } else {
-                        await SendYTAudioAsync(guild, channel, target, nextPlayback);
+                        await SendAudioAsync(guild, channel, target, nextPlayback);
                     }
                 }
 

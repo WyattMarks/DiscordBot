@@ -45,29 +45,23 @@ namespace DiscordBot.Modules {
         [Command("play", RunMode = RunMode.Async), Alias("p"), Priority(1)]
         [Summary("Play a sound")]
         public async Task Play(double volume, [Remainder] string sound) {
-            if (string.IsNullOrEmpty(_service.GetYouTubeVideoIdFromUrl(sound))) //For when someone accidentally uses ~play for a youtube video instead of the dedicated ~youtube commmand
-                await _service.SendAudioAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, sound, Math.Max(0, Math.Min(1, volume)));
-            else
-                await _service.SendYTAudioAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, sound, Math.Max(0, Math.Min(1, volume)));
+            await _service.SendAudioAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, sound, Math.Max(0, Math.Min(1, volume)));
         }
 
         [Command("play", RunMode = RunMode.Async), Alias("p"), Priority(0)]
         [Summary("Play a sound")]
         public async Task Play([Remainder] string sound) {
-            if (string.IsNullOrEmpty(_service.GetYouTubeVideoIdFromUrl(sound))) 
-                await _service.SendAudioAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, sound);
-            else
-                await _service.SendYTAudioAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, sound);
+            await _service.SendAudioAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, sound);
         }
 
 
-        [Command("youtube", RunMode = RunMode.Async), Alias("yt"), Priority(1)]
+        [Command("youtube", RunMode = RunMode.Async), Alias("yt", "song"), Priority(1)]
         [Summary("Play a video with volume")]
         public async Task Youtube(double volume, [Remainder] string video) {
             await _service.SendYTAudioAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, video, Math.Max(0, Math.Min(1, volume)));
         }
 
-        [Command("youtube", RunMode = RunMode.Async), Alias("yt"), Priority(0)]
+        [Command("youtube", RunMode = RunMode.Async), Alias("yt", "song"), Priority(0)]
         [Summary("Play a video")]
         public async Task Youtube([Remainder] string video) {
             await _service.SendYTAudioAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, video);

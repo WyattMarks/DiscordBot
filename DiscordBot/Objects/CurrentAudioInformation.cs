@@ -13,8 +13,8 @@ namespace DiscordBot.Objects {
         public SocketVoiceChannel voiceChannel;
         public string playing = null;
         public string paused = "";
-        public DateTime startTime;
-        public DateTime pauseTime;
+        public long startPos;
+        public long pausePos;
         public CurrentAudioInformation(ConcurrentQueue<string> queue, IAudioClient client, AudioOutStream currentStream, CancellationTokenSource cancelTokenSource, string playing, SocketVoiceChannel channel) {
             this.queue = queue;
             this.client = client;
