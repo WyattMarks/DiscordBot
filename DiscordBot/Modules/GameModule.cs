@@ -86,7 +86,7 @@ namespace DiscordBot.Modules {
             }
         }
 
-        [Command("valorant_mmr"), Alias("mmr")]
+        [Command("valorant_mmr"), Alias("mmr", "rank", "valorant_rank")]
         [Summary("Get the rank information of a Valorant profile")]
         public async Task ValorantMMR(string profile, [Remainder] string tagline) {
 
@@ -102,6 +102,8 @@ namespace DiscordBot.Modules {
                 await ReplyAsync("Error fetching this profile, sorry :(.\n" + e.Message);
                 return;
             }
+
+
 
             int status;
             int.TryParse(response.status, out status);
@@ -127,6 +129,8 @@ namespace DiscordBot.Modules {
                 await ReplyAsync("", false, builder.Build());
             } else if (status == 404) {
                 await ReplyAsync($"Profile \"{profile}#{tagline}\" not found.");
+            } else if (status == 204) {
+                await ReplyAsync($"Profile \"{profile}#{tagline}\" has no rank.");
             } else {
                 await ReplyAsync($"Error: {status}: {response.message}");
             }
