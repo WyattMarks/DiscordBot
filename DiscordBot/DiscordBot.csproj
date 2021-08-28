@@ -367,6 +367,9 @@
     <Compile Include="Modules\AudioModule.cs" />
     <Compile Include="Modules\GameModule.cs" />
     <Compile Include="Objects\CurrentAudioInformation.cs" />
+    <Compile Include="Objects\ValorantMMRResponse.cs" />
+    <Compile Include="Objects\ValorantProfileResponse.cs" />
+    <Compile Include="Objects\ValorantStatusResponse.cs" />
     <Compile Include="Services\AudioService.cs" />
     <Compile Include="Services\CommandHandler.cs" />
     <Compile Include="Modules\MiscModule.cs" />
