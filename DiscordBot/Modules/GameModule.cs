@@ -45,8 +45,20 @@ namespace DiscordBot.Modules {
 
         [Command("valorant_profile")]
         [Summary("Get the information of a Valorant profile")]
-        public async Task ValorantProfile(string profile, string tagline) {
-            ValorantProfileResponse response = await _gamesService.GetValorantProfile(profile, tagline);
+        public async Task ValorantProfile(string profile, [Remainder] string tagline) {
+
+            if (tagline.Contains(" ")) {
+                profile += " " + tagline.Substring(0, tagline.LastIndexOf(' '));
+                tagline = tagline.Substring(tagline.LastIndexOf(' ') + 1);
+            }
+
+            ValorantProfileResponse response;
+            try {
+                response = await _gamesService.GetValorantProfile(profile, tagline);
+            } catch (HttpRequestException e) {
+                await ReplyAsync("Error fetching this profile, sorry :(.\n" + e.Message);
+                return;
+            }
 
             int status;
             int.TryParse(response.status, out status);
@@ -76,8 +88,20 @@ namespace DiscordBot.Modules {
 
         [Command("valorant_mmr"), Alias("mmr")]
         [Summary("Get the rank information of a Valorant profile")]
-        public async Task ValorantMMR(string profile, string tagline, string region="na") {
-            ValorantMMRResponse response = await _gamesService.GetValorantMMR(profile, tagline, region);
+        public async Task ValorantMMR(string profile, [Remainder] string tagline) {
+
+            if (tagline.Contains(" ")) {
+                profile += " " + tagline.Substring(0, tagline.LastIndexOf(' '));
+                tagline = tagline.Substring(tagline.LastIndexOf(' ') + 1);
+            }
+
+            ValorantMMRResponse response;
+            try {
+                response = await _gamesService.GetValorantMMR(profile, tagline, "na");
+            } catch (HttpRequestException e) {
+                await ReplyAsync("Error fetching this profile, sorry :(.\n" + e.Message);
+                return;
+            }
 
             int status;
             int.TryParse(response.status, out status);
