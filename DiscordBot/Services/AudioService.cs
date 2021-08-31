@@ -18,6 +18,7 @@ using System.Speech.Synthesis;
 using System.Speech.AudioFormat;
 using DiscordBot.Objects;
 using System.Net.Http;
+using Newtonsoft.Json;
 
 namespace DiscordBot {
     public class AudioService {
@@ -100,7 +101,7 @@ namespace DiscordBot {
 
             var audioClient = await target.ConnectAsync();
 
-            if (CurrentAudioClients.TryAdd(guild.Id, new CurrentAudioInformation(new ConcurrentQueue<string>(), audioClient, null, null, null, (SocketVoiceChannel) target))) {
+            if (CurrentAudioClients.TryAdd(guild.Id, new CurrentAudioInformation(new ConcurrentQueue<string>(), audioClient, null, null, null, (SocketVoiceChannel)target))) {
                 await _log.LogAsync(new LogMessage(LogSeverity.Verbose, "Audio", $"Connected to voice on {guild.Name}."));
             }
         }
@@ -202,12 +203,12 @@ namespace DiscordBot {
                 await _log.LogAsync(new LogMessage(LogSeverity.Info, "Audio", $"Starting to speak \"{speech}\" in {guild.Name}"));
 
                 if (!string.IsNullOrEmpty(client.playing)) {
-                    client.queue.Enqueue("SPEAK"+speech); //SPEAK prefix just so we can differentiate between audio files and text to speech
+                    client.queue.Enqueue("SPEAK" + speech); //SPEAK prefix just so we can differentiate between audio files and text to speech
                     await channel.SendMessageAsync($"Added \"{speech}\" to the queue.");
                     return;
                 }
 
-                client.playing = "SPEAK"+speech;
+                client.playing = "SPEAK" + speech;
 
                 if (client.currentStream == null) {
                     client.currentStream = client.client.CreatePCMStream(AudioApplication.Mixed, 98304, 200);
@@ -216,7 +217,7 @@ namespace DiscordBot {
                 var speechStream = new MemoryStream();
 
                 var synthesizer = new SpeechSynthesizer();
-                var synthFormat = new SpeechAudioFormatInfo(EncodingFormat.Pcm, (int) (98304.0 / (speed)), 16, 1, 16000, 2, null);
+                var synthFormat = new SpeechAudioFormatInfo(EncodingFormat.Pcm, (int)(98304.0 / (speed)), 16, 1, 16000, 2, null);
 
                 string[] words = speech.Split(' ');
                 foreach (var voice in synthesizer.GetInstalledVoices()) {
@@ -247,47 +248,34 @@ namespace DiscordBot {
             }
         }
 
-        public async Task QueueYTPlaylistAsync(IGuild guild, IMessageChannel channel, IVoiceChannel target, string path, double volume = 1.0) {
+        public async Task<PlaylistEntry> SearchYoutube(YoutubeClient youtube, string search, bool retry = false) {
+            string youtubeID = GetYouTubeVideoIdFromUrl(search);
 
-            string playlistID = GetYouTubePlaylistIDFromUrl(path);
-            CurrentAudioInformation client;
+            if (youtubeID == null || youtubeID.Length == 0) {
 
-            if (CurrentAudioClients.TryGetValue(guild.Id, out client)) {
-
-                if (!string.IsNullOrEmpty(playlistID)) {
-
-                    await channel.SendMessageAsync($"Adding playlist http://youtube.com/playlist?list={playlistID} to the queue.");
-                    await _log.LogAsync(new LogMessage(LogSeverity.Verbose, "Audio", $"Adding playlist http://youtube.com/playlist?list={playlistID} to the queue in {guild.Name}."));
-
-                    var youtube = new YoutubeClient();
-
-                    foreach (var vid in await youtube.Playlists.GetVideosAsync(GetYouTubePlaylistIDFromUrl(path).Trim('\n', ' '))) {
-                        client.queue.Enqueue(vid.Url);
+                try {
+                    var videos = await youtube.Search.GetVideosAsync(search);
+                    return new PlaylistEntry(videos[0].Id.ToString(), videos[0].Title);
+                } catch (YoutubeExplode.Exceptions.YoutubeExplodeException e) {
+                    //INCOMING: Very hacky and stupid way of fixing this. For some reason popular music artists sometimes give error ("Cannot extract video author") and don't play.
+                    //Therefore we just search for a reupload once to see if we can find a working vid
+                    if (retry) {
+                        return null;
+                    } else {
+                        return await SearchYoutube(youtube, search + " lyrics", true);
                     }
-
-                    if (string.IsNullOrEmpty(client.playing)) {
-                        await CheckQueue(guild, channel, target); //If we're not playing, start playing (by checking the queue)
-                    }
-
-                    return;
-                } else {
-
-                    await channel.SendMessageAsync("That is not a valid Youtube playlist link!");
-                    return;
                 }
             } else {
-
-                await JoinAudio(guild, target);
-                await QueueYTPlaylistAsync(guild, channel, target, path);
+                var vid = await youtube.Videos.GetAsync(youtubeID);
+                return new PlaylistEntry(vid.Id.ToString(), vid.Title);
             }
         }
 
-        public async Task SendYTAudioAsync(IGuild guild, IMessageChannel channel, IVoiceChannel target, string path, double volume=1.0, bool retry = false) {
+        public async Task SendYTAudioAsync(IGuild guild, IMessageChannel channel, IVoiceChannel target, string path, double volume = 1.0) {
 
             CurrentAudioInformation client;
             if (CurrentAudioClients.TryGetValue(guild.Id, out client)) {
                 await CheckAudioClient(guild, target, client.client);
-                string youtubeID = GetYouTubeVideoIdFromUrl(path);
 
                 var youtube = new YoutubeClient();
 
@@ -299,26 +287,13 @@ namespace DiscordBot {
 
                 client.playing = path;
 
-                if (youtubeID == null || youtubeID.Length == 0) {
-                    try {
-                        var videos = await youtube.Search.GetVideosAsync(path);
-                        youtubeID = videos[0].Id.ToString();
-                        await _log.LogAsync(new LogMessage(LogSeverity.Debug, "Audio", $"{youtubeID}"));
-                    } catch (YoutubeExplode.Exceptions.YoutubeExplodeException e) {
-                        //INCOMING: Very hacky and stupid way of fixing this. For some reason popular music artists sometimes give error ("Cannot extract video author") and don't play.
-                        //Therefore we just search for a reupload once to see if we can find a working vid
-                        if (retry) {
-                            await channel.SendMessageAsync($"Error searching for song: {e.Message}");
-                            await CheckQueue(guild, channel, target);
-                            return;
-                        } else {
-                            client.playing = null;
-                            await channel.SendMessageAsync($"Error playing the first result, trying the next one...");
-                            await SendYTAudioAsync(guild, channel, target, path + " lyrics", volume, true); //Yep. We search for the lyrics reupload and hope the song is on there.
-                            return;
-                        }
-                    }
+                var entry = await SearchYoutube(youtube, path);
+                if (entry == null) {
+                    await channel.SendMessageAsync($"Error searching for song");
+                    await CheckQueue(guild, channel, target);
+                    return;
                 }
+                string youtubeID = entry.youtubeID;
 
                 await _log.LogAsync(new LogMessage(LogSeverity.Info, "Audio", $"Starting playback of \"{path}\" in {guild.Name}"));
 
@@ -348,13 +323,13 @@ namespace DiscordBot {
                     await _log.LogAsync(new LogMessage(LogSeverity.Verbose, "Audio", $"Finished playing {path}."));
                     await CheckQueue(guild, channel, target);
                 }
-            
+
             } else {
                 await JoinAudio(guild, target);
                 await SendYTAudioAsync(guild, channel, target, path, volume);
             }
 
-             
+
         }
 
         private async Task CheckQueue(IGuild guild, IMessageChannel channel, IVoiceChannel target) {
@@ -425,30 +400,93 @@ namespace DiscordBot {
             }
         }
 
-        public string GetYouTubePlaylistIDFromUrl(string url) {
-            Uri uri = null;
-            if (!Uri.TryCreate(url, UriKind.Absolute, out uri)) {
-                try {
-                    uri = new UriBuilder("http", url).Uri;
-                } catch {
-                    // invalid url
-                    return null;
-                }
+        public async Task CreatePlaylist(IGuild guild, IMessageChannel channel, string name, string song) {
+            if (!Directory.Exists($"sounds/{guild.Id.ToString()}")) {
+                Directory.CreateDirectory($"sounds/{guild.Id.ToString()}");
             }
 
-            string host = uri.Host;
-            string[] youTubeHosts = { "www.youtube.com", "youtube.com", "youtu.be", "www.youtu.be" };
+            if (!Directory.Exists($"sounds/{guild.Id.ToString()}/playlists")) {
+                Directory.CreateDirectory($"sounds/{guild.Id.ToString()}/playlists");
+            }
 
-            if (!Contains(youTubeHosts, host))
-                return null;
+            if (File.Exists($"sounds/{guild.Id.ToString()}/playlists/{name}.json")) {
+                await channel.SendMessageAsync("Playlist already exists.. did you mean playlist_add?");
+                return;
+            }
 
-            var query = HttpUtility.ParseQueryString(uri.Query);
 
-            if (Contains(query.AllKeys, "list"))
-                return query["list"];
-            else
-                return null;
+            YoutubeClient youtube = new YoutubeClient();
+            var entry = await SearchYoutube(youtube, song);
+            if (entry == null) {
+                await channel.SendMessageAsync("Error finding that song... try a different wording?");
+                return;
+            }
 
+            await channel.SendMessageAsync($"Created and added '{entry.title}' to the playlist");
+
+            PlaylistEntry[] array = { entry };
+            await SavePlaylist(guild, name, array);
+
+
+        }
+
+        public async Task SavePlaylist(IGuild guild, string name, PlaylistEntry[] playlist) {
+            File.WriteAllText($"sounds/{guild.Id.ToString()}/playlists/{name}.json", JsonConvert.SerializeObject(playlist));
+        }
+
+        public async Task<PlaylistEntry[]> LoadPlaylist(string guild, string name) {
+            return JsonConvert.DeserializeObject<PlaylistEntry[]>(File.ReadAllText($"sounds/{guild}/playlists/{name}.json"));
+        }
+
+        public async Task AddPlaylist(IGuild guild, IMessageChannel channel, string name, string song) {
+            if (!Directory.Exists($"sounds/{guild.Id.ToString()}") || !Directory.Exists($"sounds/{guild.Id.ToString()}/playlists") || !File.Exists($"sounds/{guild.Id.ToString()}/playlists/{name}.json")) {
+                await channel.SendMessageAsync("Playlist doesn't exist... did you mean playlist_create?");
+                return;
+            }
+
+            YoutubeClient youtube = new YoutubeClient();
+            var entry = await SearchYoutube(youtube, song);
+            if (entry == null) {
+                await channel.SendMessageAsync("Error finding that song... try a different wording?");
+                return;
+            }
+
+
+            PlaylistEntry[] playlist = await LoadPlaylist(guild.Id.ToString(), name);
+
+            PlaylistEntry[] newPlaylist = new PlaylistEntry[playlist.Length + 1];
+            for (int i = 0; i < playlist.Length; i++) {
+                if (playlist[i].youtubeID == entry.youtubeID) {
+                    await channel.SendMessageAsync("That's already in the playlist dude.");
+                    return;
+                }
+                newPlaylist[i] = playlist[i];
+            }
+            newPlaylist[playlist.Length] = entry;
+
+            await channel.SendMessageAsync($"Added '{entry.title}' to the playlist");
+
+            await SavePlaylist(guild, name, newPlaylist);
+        }
+
+        public async Task PlayPlaylist(IGuild guild, IMessageChannel channel, IVoiceChannel target, string name) {
+            if (!Directory.Exists($"sounds/{guild.Id.ToString()}") || !Directory.Exists($"sounds/{guild.Id.ToString()}/playlists") || !File.Exists($"sounds/{guild.Id.ToString()}/playlists/{name}.json")) {
+                await channel.SendMessageAsync("Playlist doesn't exist...");
+                return;
+            }
+
+            CurrentAudioInformation client;
+            if (CurrentAudioClients.TryGetValue(guild.Id, out client)) {
+
+                PlaylistEntry[] playlist = await LoadPlaylist(guild.Id.ToString(), name);
+                for (int i = 0; i < playlist.Length; i++) {
+                    client.queue.Enqueue("YOUTUBEhttps://youtube.com/watch?v=" + playlist[i].youtubeID); //Is this cheating? No, because it's only me and I say so.
+                }
+                await CheckQueue(guild, channel, target);
+            } else {
+                await JoinAudio(guild, target);
+                await PlayPlaylist(guild, channel, target, name);
+            }
         }
     }
 }

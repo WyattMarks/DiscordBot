@@ -68,18 +68,23 @@ namespace DiscordBot.Modules {
         }
 
 
-        [Command("playlist", RunMode = RunMode.Async), Priority(1)]
-        [Summary("Play a Youtube playlist")]
-        public async Task YoutubePlaylist([Remainder] string playlist) {
-            await _service.QueueYTPlaylistAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, playlist);
+        [Command("playlist_create")]
+        [Summary("Create a playlist with a given song / video")]
+        public async Task CreatePlaylist(string playlist, [Remainder] string song) {
+            await _service.CreatePlaylist(Context.Guild, Context.Channel, playlist, song);
         }
 
-        [Command("playlist", RunMode = RunMode.Async), Priority(0)] //Separate command so people don't accidentally fuck up the queue
-        [Summary("Play a Youtube playlist with volume")]
-        public async Task YoutubePlaylist(double volume, [Remainder] string video) {
-            await _service.SendYTAudioAsync(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, video, Math.Max(0, Math.Min(1, volume)));
+        [Command("playlist_add")]
+        [Summary("Add a song to a playlist")]
+        public async Task AddToPlaylist(string playlist, [Remainder] string song) {
+            await _service.AddPlaylist(Context.Guild, Context.Channel, playlist, song);
         }
 
+        [Command("playlist")]
+        [Summary("Play a saved playlist")]
+        public async Task PlayPlaylist(string playlist) {
+            await _service.PlayPlaylist(Context.Guild, Context.Channel, (Context.User as IVoiceState).VoiceChannel, playlist);
+        }
 
         [Command("play"), Alias("p")]
         [Summary("List the sounds")] 
